@@ -208,8 +208,7 @@ To make things concrete, consider the table $R(x,y,z)$ depicted below:
 
 Alternatively, we may factorize $R$ by storing it in a trie, like this:
 
-![Trie factorization of $R$ using $x\to y\to z$ and $z\to y\to x$
-orders.](figs/trie.png)
+![Trie factorization of $R$ using $x\to y\to z$ and $z\to y\to x$ orders.](figs/trie.png)
 
 Mathematically, this representation is factorized in the sense that set $\times$ distributes over $\cup$:
 
