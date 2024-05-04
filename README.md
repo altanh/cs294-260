@@ -45,44 +45,62 @@ Clearly there is a fundamental connection between sparse matrices, tensors, and 
 
 ### Example: traversing a graph
 Suppose we have a graph stored as a table of edges, and we want to find all pairs of nodes reachable by paths of length exactly 3 in the graph. Relationally, we can consider 3 copies of the graph with appropriately relabeled attributes,
+
 $$
 R_1(\text{src},X_1),R_2(X_1,X_2),R_3(X_2,\text{dst}),
 $$
+
 over which we compute the natural join and project out our source and destination nodes:
+
 $$
 Q = \prod_{\text{src},\text{dst}}R_1\bowtie R_2\bowtie R_3.
 $$
+
 If instead we had the adjacency matrix $A$, we could make the following observation:
+
 $$
 Q_{ij} = (A^2)_{ij} = \sum_k A_{ik}A_{kj} = \text{number of ways $i$ can reach $j$ in 2 hops},
 $$
+
 as the product $A_{ik}A_{kj}$ is 1 if node $k$ bridges $i$ and $j$, otherwise 0. It follows inductively that
+
 $$
 Q_{i\ell} = (A^3)_{i\ell} = \sum_j (A^2)_{ij} A_{j\ell} = \text{number of ways $i$ can reach $\ell$ in 3 hops.}
 $$
+
 The pairs we want are exactly the indices $(i,\ell)$ for which $Q_{i\ell}$ is nonzero (and in this case, positive). We can also write this in one fused tensor algebra expression, since the multiplication by $A_{j\ell}$ distributes over the sum:
+
 $$
 Q_{i\ell} = \sum_j \left(\sum_k A_{ik}A_{kj}\right)A_{j\ell} = \sum_{k,j} A_{ik}A_{kj}A_{j\ell}.
 $$
+
 The similarity to the relational algebra query is of course not a coincidence. Note that $Q_{i\ell}$ tells us the number of paths of length 3 from $i$ to $\ell$, while $Q(\text{src},\text{dst})$ just tells us if there is such a path. We assume set semantics for the relational query, but the reader is encouraged to pause and think about what happens under bag semantics.
 
 **Minimizing distance.**
 Now what if, instead of detecting such paths, we wanted to find the (minimum) distance between pairs of nodes when taking paths of length 3? In the relational approach, we would first need to augment the table with a weight associated to each edge:
+
 $$
 R_1(\text{src},X_1, W_1), R_2(X_1, X_2, W_2), R_3(X_2, \text{dst}, W_3)
 $$
+
 The result could then be computed by joining the three relations as before, grouping by $\text{src}$ and $\text{dst}$, and aggregating by taking the minimum of the sum of the edge weights.
+
 $$
 Q = \gamma_{\{\text{src},\text{dst}\},\min(W_1+W_2+W_3)\text{ as } W}(R_1\bowtie R_2\bowtie R_3)
 $$
+
 On the other hand, if we interpret $A_{ij}$ as a number storing the weight of edge $(i,j)$, with missing edges treated as $\infty$, we can write the computation as
+
 $$
 Q_{i\ell} = \min_{j}\left(\min_k A_{ik} + A_{kj}\right) + A_{j\ell}.
 $$
+
 This mirrors our previous expression for counting the number of paths, where we first computed the results for paths of length 2. Curiously, addition distributes over min, so we can just write
+
 $$
 Q_{i\ell} = \min_{j,k} A_{ik} + A_{kj} + A_{j\ell}.
 $$
+
 We are now ready for the punchline.
 
 ### Semirings and S-relations
@@ -110,27 +128,34 @@ An $S$-relation is the natural generalization of standard relations from databas
 We have already seen how to translate joins and projections over standard relations into those over $S$-relations: $\bowtie$ is $\otimes$, and $\prod$ is (confusingly) $\oplus$.
 
 **Natural join.** Given $R_1$ and $R_2$ with $\Gamma(R) = \mathbf{A}_1\times\mathbf{A}$ and $\Gamma(R')=\mathbf{A}\times \mathbf{A}_2$, we have
+
 $$
 [[R_1\bowtie R_2]](\mathbf{a}_1,\mathbf{a},\mathbf{a}_2) = R_1(\mathbf{a}_1,\mathbf{a})\otimes R_2(\mathbf{a},\mathbf{a}_2).
 $$
+
 In other words, the semiring value of a join output tuple is the product of the values of the input tuples that matched on the shared attributes.
 
 **Projection.** Projection is a sum over the unprojected attributes: given $R$ with $\Gamma(R) = \mathbf{A}\times \mathbf{A}'$,
+
 $$
 [[\prod_{\mathbf{A}'} R]](\mathbf{a}') = \bigoplus_{\mathbf{a} \in \mathbf{A}} R(\mathbf{a}, \mathbf{a}').
 $$
+
 Note that the sum ranges across *all* values $\mathbf{a}$ in the attribute domains $\mathbf{A}$. This is well defined, since $R$ has finite support; in other words, we sum over the values that are present in the physical table.
 
 **Union.** Union of relations with the same schema is elementwise addition:
+
 $$
 [[R_1\cup R_2]](\mathbf{a}) = R_1(\mathbf{a})\oplus R_2(\mathbf{a}).
 $$
 
 #### What about the rest?
 **Selection.** We can actually support selection in the $S$-relation framework, if we carefully allow the usage of relations with infinite support. The trick is to introduce an auxiliary relation that encodes the predicate as truth table. For example, to select elements of a matrix below the diagonal, we would transform
+
 $$
 \sigma_{\text{col}<\text{row}}(A) \leadsto A \bowtie \text{LessThan},
 $$
+
 where $\text{LessThan}(\text{col},\text{row})$ is $1$ when $\text{col} < \text{row}$ and 0 otherwise. Of course, $\text{LessThan}$ is infinitely large, if $\text{col}$ and $\text{row}$ are unbounded. However, we are joining it with a finite relation, so we could just "iterate" over $A$ and (quickly!) look up the value in $\text{LessThan}$.  This style of selection was explored in the context of $S$-relational algebra by [2], and in a more traditional setting
 by [3].
 
@@ -153,13 +178,17 @@ The original provenance semirings paper suggests using formal power series over 
 The main idea with datalogo is to define a separate partial order $\sqsubseteq$ on the semiring, as opposed to using the natural order $a \leq b$ defined as having some $c$ such that $a\oplus c = b$. The semiring operators $\oplus$ and $\otimes$ are then required to be monotone with respect to $\sqsubseteq$: if $a\sqsubseteq c$ and $b\sqsubseteq d$, then $a\oplus b\sqsubseteq c\oplus d$, and likewise for $\otimes$. The existence of a least fixed point as well as convergence is characterized algebraically by a property of the semiring called *stability.* In short, the stability of a semiring tells us how countably infinite sums collapse to finite sums. The authors focus on *linear* datalog programs, in which all rules contain at most a single IDB predicate. An additional property important for convergence is that the semiring $\otimes$ be *strict*, which means that $a\otimes \bot = \bot$ where $\bot$ is the least element of $\sqsubseteq$.
 
 The authors also generalize semi-naive evaluation to work over *distributive dioids*, which are naturally ordered, $\oplus$-idempotent semirings that are also distributive lattices. For distributive dioids, subtraction is defined by
+
 $$
 b - a \equiv \bigwedge\{c\mid a + c\sqsupseteq b\}.
 $$
+
 The authors note that the min-tropical semiring with $\geq$ as the partial order is a distributive dioid, with subtraction
+
 $$
 b - a = b~\text{if}~b \leq a ~\text{else}~ \infty.
 $$
+
 Semi-naive using this subtraction operator recovers the common shortest-paths optimization.
 
 ## Optimization
@@ -183,6 +212,7 @@ Alternatively, we may factorize $R$ by storing it in a trie, like this:
 orders.](figs/trie.png)
 
 Mathematically, this representation is factorized in the sense that set $\times$ distributes over $\cup$:
+
 $$
 \begin{alignat*}{6}
     R &=      &&\{1\}&&\times{}(&&\{2\}&&\times{} &&\{3\} \\
@@ -202,15 +232,19 @@ Sparse representations avoid storing unnecessary information. But space (obvious
 
 #### The triangle query
 Let's modify the query we saw earlier. Instead of all paths of length 3, we are now only interested in paths of length 3 that start at end at the same vertex - triangles. Let's start by listing all the triangles. For notational clarity, we'll switch to a relational calculus with explicit variables in place of implicit attributes:
+
 $$
 Q(i,k,j) = R(i,k)\bowtie R(k,j)\bowtie R(i,j).
 $$
+
 How might we compute this? Mainstream database systems would emit a *binary join plan*, which amounts to computing one join first, materializing the result, then joining the intermediate with the remaining relation. If $|R|=N$, this results in a worst-case runtime of $O(N^2)$. However, it is a fact that a graph with $N$ edges has $O(N^{1.5}$) triangles (see the appendix for a very short proof).
 
 We can also do something similar using linear algebraic operations:
+
 $$
 Q^{\text{wedges}} = A\odot (A^2) = \sum_k A_{ik}A_{kj}A_{ij},\quad Q^\text{triangles} = \text{tr}(A^3) = \sum_{i,k,j} A_{ik}A_{kj}A_{ij}.
 $$
+
 where $Q^\text{wedges}_{ij}$ gives the number of triangles that $i$ and $j$ participate in, and $Q^\text{triangles}$ is the total number of triangles in $A$ (technically with some overcounting). Here $\odot$ is element-wise multiplication. In both cases, materializing the intermediate product $A^2$ results in a runtime of $O(N^2)$, by the reduction to binary joins above.
 
 #### Factorization enables efficient intersections
